@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Law Priest | Legal Analytics</title><link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar"><div class="brand-mark">⚖️</div><div><h1>The Law Priest</h1><p>Legal Analytics Dashboard</p></div></header>
+<main class="container">
+  <section class="hero"><p class="eyebrow">LEGAL TECHNOLOGY • NIGERIA</p><h2>Data informs, justice decides.</h2><p>Explore illustrative case trends and test simple legal-text analysis tools.</p></section>
+  <section class="stats">
+    <article class="stat"><span>Illustrative cases</span><strong id="total">—</strong></article>
+    <article class="stat"><span>Outcome categories</span><strong id="outcome-count">—</strong></article>
+    <article class="stat"><span>Areas of law</span><strong id="area-count">—</strong></article>
+  </section>
+  <section class="panel"><h3>Case text explorer</h3><p>Paste a short case summary or judgment extract to identify tracked keywords.</p>
+    <textarea id="legal-text" placeholder="Enter legal text here..."></textarea>
+    <div class="actions"><button id="analyze-btn">Analyze keywords</button><button id="predict-btn" class="secondary">Run demo indicator</button></div>
+    <div id="result" class="result" aria-live="polite">Your analysis will appear here.</div>
+  </section>
+  <section class="panel"><h3>Illustrative case records</h3><p class="muted">These sample records are fictional examples for testing, not actual Nigerian judgments.</p>
+    <div class="table-wrap"><table><thead><tr><th>Case</th><th>Area</th><th>Outcome</th><th>Sentence / remedy</th></tr></thead><tbody id="cases-body"><tr><td colspan="4">Loading records…</td></tr></tbody></table></div>
+  </section>
+  <footer>Educational prototype only. It does not provide legal advice or reliable real-world predictions.</footer>
+</main><script src="/static/app.js"></script>
+</body></html>

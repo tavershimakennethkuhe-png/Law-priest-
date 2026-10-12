@@ -1,0 +1,15 @@
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172033;background:#f4f6fa}
+*{box-sizing:border-box}body{margin:0}.topbar{display:flex;align-items:center;gap:14px;background:#111d35;color:#fff;padding:18px max(20px,calc((100% - 1080px)/2)}
+.brand-mark{display:grid;place-items:center;width:48px;height:48px;background:#f0c56a;color:#14213a;border-radius:14px;font-size:25px}
+h1{font-size:21px;margin:0}.topbar p{margin:3px 0 0;color:#c7d0e2;font-size:13px}
+.container{max-width:1080px;margin:auto;padding:26px 18px 42px}.hero{padding:24px 0 18px}.eyebrow{font-size:11px;letter-spacing:2px;font-weight:800;color:#9b6b12}
+h2{font-size:clamp(28px,5vw,43px);margin:8px 0;color:#14213a}.hero>p:last-child{color:#5b6577}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:16px 0 22px}.stat,.panel{background:#fff;border:1px solid #e4e8ef;border-radius:16px;padding:20px;box-shadow:0 4px 16px #15213b08}
+.stat span{display:block;font-size:13px;color:#697386}.stat strong{display:block;font-size:30px;margin-top:8px;color:#14213a}
+.panel{margin:16px 0}.panel h3{margin:0 0 8px;font-size:19px}.panel p{color:#647084;font-size:14px}
+textarea{width:100%;min-height:145px;border:1px solid #ccd4e0;border-radius:10px;padding:13px;font:inherit;resize:vertical}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}button{background:#17345c;color:#fff;border:0;border-radius:9px;padding:12px 16px;font-weight:700;cursor:pointer}button.secondary{background:#e9eef6;color:#17345c}
+.result{margin-top:14px;padding:14px;background:#f4f6fa;border-radius:10px;white-space:pre-wrap;line-height:1.6}.muted{font-size:12px!important}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}th,td{padding:12px;border-bottom:1px solid #e9edf3;vertical-align:top}th{color:#5b6577;background:#f8f9fc}
+footer{text-align:center;color:#6b7484;font-size:12px;padding:22px 4px}
+@media(max-width:620px){.stats{grid-template-columns:1fr}.stat{padding:15px}.stat strong{font-size:25px}.container{padding:18px 12px 30px}.panel{padding:15px}}
