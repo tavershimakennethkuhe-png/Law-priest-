@@ -1,114 +1,112 @@
-from fastapi import FastAPI
+import csv, json, os, re, sqlite3, urllib.error, urllib.request
+from pathlib import Path
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-import csv
-import re
-import sqlite3
-from pathlib import Path
+from pydantic import BaseModel, Field
 
-APP_DIR = Path(__file__).parent
-DB_PATH = APP_DIR / "cases.db"
-CSV_PATH = APP_DIR / "illustrative_cases.csv"
-
-app = FastAPI(title="The Law Priest Legal Analytics", version="1.0.0")
-app.mount("/static", StaticFiles(directory=str(APP_DIR)), name="static")
-
+ROOT = Path(__file__).parent
+DB = ROOT / "cases.db"
+CSV_FILE = ROOT / "illustrative_cases.csv"
+app = FastAPI(title="The Law Priest Legal Analytics", version="1.1.0")
+app.mount("/static", StaticFiles(directory=str(ROOT)), name="static")
 
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS cases (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                case_name TEXT NOT NULL,
-                area_of_law TEXT NOT NULL,
-                outcome TEXT NOT NULL,
-                sentence TEXT NOT NULL,
-                notes TEXT NOT NULL
-            )
-        """)
-        count = conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0]
-        if count == 0 and CSV_PATH.exists():
-            with CSV_PATH.open(encoding="utf-8", newline="") as f:
-                for row in csv.DictReader(f):
-                    conn.execute(
-                        "INSERT INTO cases (case_name, area_of_law, outcome, sentence, notes) VALUES (?, ?, ?, ?, ?)",
-                        (row["case_name"], row["area_of_law"], row["outcome"], row["sentence"], row["notes"])
-                    )
-
+    with sqlite3.connect(DB) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS cases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, case_name TEXT NOT NULL,
+        area_of_law TEXT NOT NULL, outcome TEXT NOT NULL,
+        sentence TEXT NOT NULL, notes TEXT NOT NULL)""")
+        if conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0] == 0 and CSV_FILE.exists():
+            with CSV_FILE.open(encoding="utf-8", newline="") as f:
+                for r in csv.DictReader(f):
+                    conn.execute("INSERT INTO cases(case_name,area_of_law,outcome,sentence,notes) VALUES(?,?,?,?,?)",
+                                 (r["case_name"], r["area_of_law"], r["outcome"], r["sentence"], r["notes"]))
 
 @app.on_event("startup")
-def startup():
-    init_db()
+def startup(): init_db()
 
+class TextRequest(BaseModel):
+    text: str = Field(max_length=12000)
 
-class AnalyzeRequest(BaseModel):
-    text: str
-
+class AIRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=12000)
+    task: str = Field(default="Analyse the legal issues and arguments", max_length=100)
 
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return (APP_DIR / "index.html").read_text(encoding="utf-8")
+def home(): return (ROOT / "index.html").read_text(encoding="utf-8")
 
+@app.get("/health")
+def health(): return {"status":"ok"}
 
 @app.get("/api/summary")
 def summary():
-    with sqlite3.connect(DB_PATH) as conn:
-        rows = conn.execute("SELECT area_of_law, outcome, sentence FROM cases").fetchall()
+    with sqlite3.connect(DB) as c: rows = c.execute("SELECT area_of_law,outcome FROM cases").fetchall()
     outcomes, areas = {}, {}
-    for area, outcome, _sentence in rows:
+    for area, outcome in rows:
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
         areas[area] = areas.get(area, 0) + 1
-    return {
-        "total_cases": len(rows), "outcomes": outcomes, "areas": areas,
-        "notice": "Illustrative sample data only; not real court statistics."
-    }
-
+    return {"total_cases":len(rows), "outcomes":outcomes, "areas":areas,
+            "notice":"Illustrative sample data, not real court statistics."}
 
 @app.get("/api/cases")
 def cases():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT * FROM cases ORDER BY id DESC").fetchall()
-    return [dict(row) for row in rows]
-
+    with sqlite3.connect(DB) as c:
+        c.row_factory = sqlite3.Row
+        return [dict(r) for r in c.execute("SELECT * FROM cases ORDER BY id DESC").fetchall()]
 
 @app.post("/api/analyze")
-def analyze(request: AnalyzeRequest):
-    text = request.text.strip()
-    if not text:
-        return {"keywords": [], "summary": "Enter legal text to analyze.", "disclaimer": "Educational tool only."}
-    terms = [
-        "burden of proof", "fair hearing", "negligence", "contract",
-        "mens rea", "actus reus", "sentencing", "appeal",
-        "fundamental rights", "jurisdiction", "evidence", "damages"
-    ]
-    lower = text.lower()
-    found = [term for term in terms if term in lower]
-    word_count = len(re.findall(r"\b[\w'-]+\b", text))
-    return {
-        "keywords": found, "word_count": word_count,
-        "summary": f"Found {len(found)} tracked legal keyword(s) in {word_count} words.",
-        "disclaimer": "Keyword matching only; this is not legal advice or validated legal analysis."
-    }
+def analyze(req: TextRequest):
+    text = req.text.strip()
+    terms = ["burden of proof","fair hearing","negligence","contract","mens rea","actus reus",
+             "sentencing","appeal","fundamental rights","jurisdiction","evidence","damages"]
+    found = [t for t in terms if t in text.lower()]
+    words = len(re.findall(r"\\b[\\w'-]+\\b", text))
+    return {"keywords":found, "word_count":words,
+            "summary":f"Found {len(found)} tracked legal keyword(s) in {words} words.",
+            "disclaimer":"Keyword matching only; not legal advice."}
 
+@app.post("/api/ai-analyze")
+def ai_analyze(req: AIRequest):
+    key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise HTTPException(503, "OpenRouter is not configured. Add OPENROUTER_API_KEY in Render Environment.")
+    model = os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free"
+    system = ("You are an educational legal research assistant for a Nigerian law student. "
+              "Analyse the supplied text clearly. Identify issues, principles, arguments and missing facts where relevant. "
+              "Never invent legislation, case names, citations, quotations or legal rules. State uncertainty and advise "
+              "verification from authoritative sources. Do not claim to predict a real court decision. This is educational "
+              "information, not legal advice.")
+    payload = {"model":model, "messages":[{"role":"system","content":system},
+               {"role":"user","content":"Task: "+req.task+"\\n\\nLegal text:\\n"+req.text}],
+               "temperature":0.2, "max_tokens":1200}
+    request = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(payload).encode(), headers={"Authorization":"Bearer "+key,
+        "Content-Type":"application/json","X-OpenRouter-Title":"The Law Priest Legal Analytics"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            result = json.loads(response.read().decode())
+        answer = result["choices"][0]["message"]["content"]
+        return {"answer":answer, "model":result.get("model",model),
+                "disclaimer":"AI-generated educational analysis. Verify all legal authorities independently."}
+    except urllib.error.HTTPError as e:
+        if e.code in (401,403): msg = "OpenRouter rejected the API key. Check OPENROUTER_API_KEY in Render."
+        elif e.code == 429: msg = "OpenRouter rate limit reached. Wait and try again."
+        else: msg = f"OpenRouter returned HTTP {e.code}. Check model ID and account status."
+        raise HTTPException(502,msg) from e
+    except (urllib.error.URLError, TimeoutError):
+        raise HTTPException(502,"Could not reach OpenRouter. Please try again.") from None
+    except (KeyError, IndexError, ValueError, json.JSONDecodeError):
+        raise HTTPException(502,"OpenRouter returned an unexpected response.") from None
 
 @app.post("/api/predict")
-def predict(request: AnalyzeRequest):
-    text = request.text.lower()
-    if not text.strip():
-        return {"outcome": "Insufficient text", "confidence": "Not calculated", "reason": "Enter a short case summary."}
-    claim_terms = ["breach", "agreement", "contract", "damages", "evidence"]
-    defence_terms = ["no evidence", "dismiss", "jurisdiction", "limitation", "reasonable doubt"]
-    claim_score = sum(term in text for term in claim_terms)
-    defence_score = sum(term in text for term in defence_terms)
-    if claim_score > defence_score:
-        outcome, reason = "Claim-favouring indicators", "The text contains more predefined claim-related keywords."
-    elif defence_score > claim_score:
-        outcome, reason = "Defence-favouring indicators", "The text contains more predefined defence-related keywords."
-    else:
-        outcome, reason = "Inconclusive", "The simple keyword rules do not indicate a clear direction."
-    return {
-        "outcome": outcome, "confidence": "Not calculated", "reason": reason,
-        "disclaimer": "Rule-based demonstration only. Not a trained model, legal opinion, or prediction of an actual court decision."
-    }
+def predict(req: TextRequest):
+    t = req.text.lower()
+    claim = sum(x in t for x in ["breach","agreement","contract","damages","evidence"])
+    defence = sum(x in t for x in ["no evidence","dismiss","jurisdiction","limitation","reasonable doubt"])
+    if claim > defence: outcome, reason = "Claim-favouring indicators","More predefined claim-related keywords were found."
+    elif defence > claim: outcome, reason = "Defence-favouring indicators","More predefined defence-related keywords were found."
+    else: outcome, reason = "Inconclusive","The simple keyword rules show no clear direction."
+    return {"outcome":outcome,"confidence":"Not calculated","reason":reason,
+            "disclaimer":"Rule-based demo only, not a trained model or actual court prediction."}
+        
